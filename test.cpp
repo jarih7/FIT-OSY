@@ -10,7 +10,8 @@
 using namespace std;
 #endif /* __PROGTEST__ */
 
-struct Block {
+struct Block
+{
     size_t size;
     Block *next;
 };
@@ -25,23 +26,27 @@ Block *lists[LEVELS];
 unsigned int blockCounts[LEVELS];
 unsigned int splitCounts[LEVELS];
 
-size_t nearestHigherPower(int memSize) {
+size_t nearestHigherPower(int memSize)
+{
     double nhp = pow(2, ceil(log2(memSize)));
     //printf("N^P of %d is %f\n", memSize, nlp);
     return nhp;
 }
 
-size_t nearestLowerPower(int memSize) {
+size_t nearestLowerPower(int memSize)
+{
     double nlp = pow(2, floor(log2(memSize)));
     //printf("NˇP of %d is %f\n", memSize, nlp);
     return nlp;
 }
 
-unsigned int highestPowerOfABlock(int memSize) {
+unsigned int highestPowerOfABlock(int memSize)
+{
     return floor(log2(memSize));
 }
 
-unsigned int setIndexesBlocks(size_t indexesBits) {
+unsigned int setIndexesBlocks(size_t indexesBits)
+{
     unsigned int lowestLevelBlockBits = 8 * lowestLevelBlockSize;
     unsigned int indexesBlocks = indexesBits / lowestLevelBlockBits;
 
@@ -54,12 +59,13 @@ unsigned int setIndexesBlocks(size_t indexesBits) {
     return indexesBlocks;
 }
 
-void initSeq1(void *memPool, int memSize) {
+void initSeq1(void *memPool, int memSize)
+{
     //the whole enlarged memory block
-    realMemoryStart = (uint8_t *) memPool;
+    realMemoryStart = (uint8_t *)memPool;
 
     //the actual memory amount to govern
-    heapMemoryStart = (uint8_t *) memPool;
+    heapMemoryStart = (uint8_t *)memPool;
 
     heapMemorySize = memSize;
     printf("I GOT %d Bytes\n", memSize);
@@ -97,7 +103,8 @@ void initSeq1(void *memPool, int memSize) {
     printf("MOVING heapMemoryStart by %d BYTES\n", indexesBlocks * lowestLevelBlockSize);
 }
 
-void initSeq2() {
+void initSeq2()
+{
     //set top-level free list
 
     //set indexes blocks as allocated in the bitfield
@@ -119,7 +126,8 @@ void initSeq2() {
 
     printf("-----------------ALLOCATING INDEX BLOCKS -------------------\n");
 
-    for (unsigned int i = 0; i < indexesBlocks; ++i) {
+    for (unsigned int i = 0; i < indexesBlocks; ++i)
+    {
         ptr = realMemoryStart;
 
         occupyIndex = (1 << (highestLevel - 4)) + i - 1;
@@ -140,7 +148,8 @@ void initSeq2() {
     printf("-----------------ALLOCATING FILLER BLOCKS -------------------\n");
 
     //set filler blocks as allocated
-    for (unsigned int j = fillerBlocks; j > 0; --j) {
+    for (unsigned int j = fillerBlocks; j > 0; --j)
+    {
         ptr = realMemoryStart;
 
         occupyIndex = 2 * (1 << (highestLevel - 4)) - j - 1;
@@ -161,7 +170,7 @@ void initSeq2() {
 
 void printBlocks(unsigned int level)
 {
-    Block * ptr = lists[level];
+    Block *ptr = lists[level];
     printf("LIST: ");
 
     while (ptr != NULL)
@@ -187,9 +196,11 @@ void setSplitBit(size_t index)
     *ptr = *ptr | mask;
 }
 
-bool createLowestLevelBlocks() {
+bool createLowestLevelBlocks()
+{
 
-    if (lowestLevel == highestLevel) {
+    if (lowestLevel == highestLevel)
+    {
         printf("**** LOWEST IS HIGHEST!!!\n");
         return false;
     }
@@ -200,10 +211,14 @@ bool createLowestLevelBlocks() {
     //uint8_t* ptr1 = NULL, *ptr2 = NULL;
     //Block* endblock = NULL;
 
-    while (curLevel <= highestLevel) {
-        if (blockCounts[curLevel] == 0) {
+    while (curLevel <= highestLevel)
+    {
+        if (blockCounts[curLevel] == 0)
+        {
             curLevel++;
-        } else {
+        }
+        else
+        {
             //endblock = lists[curLevel - 1];
             //ptr1 = (uint8_t *)(lists[curLevel - 1]);
             //size_t x = pow(2, curLevel - 1) * (blockCounts[curLevel - 1] - 1);
@@ -253,8 +268,8 @@ bool removePreallocatedBlocksFromList(unsigned int numBlocks)
         return false;
     }
 
-    printf("REMOVING BLOCKS\n");
-    
+    //printf("REMOVING BLOCKS\n");
+
     //uint8_t* ptr = (uint8_t *)(lists[lowestLevel]);
     //unsigned int cntr = 0;
 
@@ -271,7 +286,8 @@ bool removePreallocatedBlocksFromList(unsigned int numBlocks)
     return true;
 }
 
-bool initSeq3() {
+bool initSeq3()
+{
     //lists[highestLevel] = (Block *) realMemoryStart;
     //lists[highestLevel]->next = NULL;
     //lists[highestLevel]->size = highestLevelBlockSize;
@@ -282,11 +298,12 @@ bool initSeq3() {
     unsigned int numBlocks = indexesBlocks + fillerBlocks;
 
     //create numBlocks free blocks of lowest level
-    while (blockCounts[lowestLevel] < numBlocks) {
+    while (blockCounts[lowestLevel] < numBlocks)
+    {
         createLowestLevelBlocks();
         //printf("**** AFTER CREATION OF SOME BLOCKS\n");
     }
-    
+
     return true;
 }
 
@@ -311,10 +328,10 @@ void initSeq4()
         lists[i]->next = NULL;
         startsAt += blockSize;
     }
-    
 }
 
-void HeapInit(void *memPool, int memSize) {
+void HeapInit(void *memPool, int memSize)
+{
     /**
      * set real/heap-only pointers
      * set sizes and level values
@@ -343,7 +360,7 @@ void HeapInit(void *memPool, int memSize) {
 
     printf("**** AFTER SEQ 3\n");
 
-    printf("--------INFO--------\n");
+    //printf("--------INFO--------\n");
 
     //for (unsigned int i = 0; i < LEVELS; i++)
     //    printf("LIST OF POWER %d HAS - %d - FREE BLOCKS\n", i, blockCounts[i]);
@@ -356,36 +373,40 @@ void HeapInit(void *memPool, int memSize) {
     printf("--------AFTER REMOVAL--------\n");
 
     for (unsigned int i = 0; i < LEVELS; i++)
-       printf("LIST OF POWER %d HAS - %d - FREE BLOCKS\n", i, blockCounts[i]);
+        printf("LIST OF POWER %d HAS - %d - FREE BLOCKS\n", i, blockCounts[i]);
 
     //printBlocks(lowestLevel);
 
     //set the final memory pointers
     initSeq4();
+    printf("**** AFTER SEQ 4\n");
 
     printf("MEMORY SET AND PREPARED FOR USE\n");
 }
 
-void *HeapAlloc(int size) {
+void *HeapAlloc(int size)
+{
     /* todo */
 }
 
-bool HeapFree(void *blk) {
+bool HeapFree(void *blk)
+{
     /* todo */
 }
 
-void HeapDone(int *pendingBlk) {
+void HeapDone(int *pendingBlk)
+{
     /* todo */
 }
 
 #ifndef __PROGTEST__
 
-int main(void) {
+int main(void)
+{
 
     static uint8_t memPool[3 * 1048576];
     HeapInit(memPool, 2097152);
-    printf("---END---\n");
-    
+    printf("---INIT END---\n");
 
     /*
     uint8_t *p0, *p1, *p2, *p3, *p4;
@@ -456,4 +477,3 @@ int main(void) {
 }
 
 #endif /* __PROGTEST__ */
-
