@@ -16,6 +16,7 @@ struct Block
     Block *next;
 };
 
+int allocatedBlocks = 0;
 const unsigned int LEVELS = 31;
 unsigned int lowestLevel = 4, highestLevel = 0, usingLevels = 0, indexesBlocks = 0, fillerBlocks = 0;
 unsigned int lowestLevelBlockSize = 16, highestLevelBlockSize = 0;
@@ -23,8 +24,9 @@ size_t heapMemorySize = 0, realMemorySize = 0, occupancyIndexBits = 0, splitInde
 
 uint8_t *realMemoryStart = NULL, *heapMemoryStart = NULL;
 Block *lists[LEVELS];
-unsigned int blockCounts[LEVELS];
+unsigned int freeBlocksOfLevel[LEVELS];
 unsigned int splitCounts[LEVELS];
+unsigned int allocatedBlocksOfLevel[LEVELS];
 
 size_t nearestHigherPower(int memSize)
 {
@@ -61,6 +63,7 @@ unsigned int setIndexesBlocks(size_t indexesBits)
 
 void initSeq1(void *memPool, int memSize)
 {
+    allocatedBlocks = 0;
     //the whole enlarged memory block
     realMemoryStart = (uint8_t *)memPool;
 
@@ -182,6 +185,19 @@ void printBlocks(unsigned int level)
     printf("NULL\n");
 }
 
+void setIndexBit(size_t index)
+{
+    unsigned int bytes = index / 8;
+    unsigned int bits = index % 8;
+
+    uint8_t mask;
+    uint8_t *ptr = realMemoryStart;
+    ptr += bytes;
+
+    mask = 128 >> bits;
+    *ptr = *ptr | mask;
+}
+
 void setSplitBit(size_t index)
 {
     index += occupancyIndexBits;
@@ -198,7 +214,6 @@ void setSplitBit(size_t index)
 
 bool createLowestLevelBlocks()
 {
-
     if (lowestLevel == highestLevel)
     {
         printf("**** LOWEST IS HIGHEST!!!\n");
@@ -213,7 +228,7 @@ bool createLowestLevelBlocks()
 
     while (curLevel <= highestLevel)
     {
-        if (blockCounts[curLevel] == 0)
+        if (freeBlocksOfLevel[curLevel] == 0)
         {
             curLevel++;
         }
@@ -221,7 +236,7 @@ bool createLowestLevelBlocks()
         {
             //endblock = lists[curLevel - 1];
             //ptr1 = (uint8_t *)(lists[curLevel - 1]);
-            //size_t x = pow(2, curLevel - 1) * (blockCounts[curLevel - 1] - 1);
+            //size_t x = pow(2, curLevel - 1) * (freeBlocksOfLevel[curLevel - 1] - 1);
             //ptr1 += x;
             //endblock = (Block *) ptr1;
 
@@ -235,8 +250,8 @@ bool createLowestLevelBlocks()
             //endblock->next->next = (Block *)ptr2;
             //endblock->next->next->size = lists[curLevel - 1]->size;
             //endblock->next->next->next = NULL;
-            blockCounts[curLevel] -= 1;
-            blockCounts[curLevel - 1] += 2;
+            freeBlocksOfLevel[curLevel] -= 1;
+            freeBlocksOfLevel[curLevel - 1] += 2;
             splitIndex = pow(2, highestLevel - curLevel) + splitCounts[curLevel] - 1;
             setSplitBit(splitIndex);
             splitCounts[curLevel] += 1;
@@ -256,13 +271,13 @@ bool createLowestLevelBlocks()
 
 bool removePreallocatedBlocksFromList(unsigned int numBlocks)
 {
-    if (numBlocks > blockCounts[lowestLevel])
+    if (numBlocks > freeBlocksOfLevel[lowestLevel])
     {
         printf("NOT ENOUGH BLOCKS AT LOWEST LEVEL FOR REMOVAL\n");
         return false;
     }
 
-    if (blockCounts[lowestLevel] == 0)
+    if (freeBlocksOfLevel[lowestLevel] == 0)
     {
         printf("NOTHING IN LOWEST LEVEL\n");
         return false;
@@ -281,7 +296,7 @@ bool removePreallocatedBlocksFromList(unsigned int numBlocks)
 
     //Block *lastBlock = (Block *)ptr;
     //lists[lowestLevel] = lastBlock->next;
-    blockCounts[lowestLevel] -= numBlocks;
+    freeBlocksOfLevel[lowestLevel] -= numBlocks;
 
     return true;
 }
@@ -291,14 +306,14 @@ bool initSeq3()
     //lists[highestLevel] = (Block *) realMemoryStart;
     //lists[highestLevel]->next = NULL;
     //lists[highestLevel]->size = highestLevelBlockSize;
-    blockCounts[highestLevel] = 1;
+    freeBlocksOfLevel[highestLevel] = 1;
 
     //printf("lists[HL]->size = %d\n", lists[highestLevel]->size);
 
     unsigned int numBlocks = indexesBlocks + fillerBlocks;
 
     //create numBlocks free blocks of lowest level
-    while (blockCounts[lowestLevel] < numBlocks)
+    while (freeBlocksOfLevel[lowestLevel] < numBlocks)
     {
         createLowestLevelBlocks();
         //printf("**** AFTER CREATION OF SOME BLOCKS\n");
@@ -317,7 +332,7 @@ void initSeq4()
     for (size_t i = 0; i < LEVELS; i++)
     {
         //printf("CHECKING LEVEL %zu\n", i);
-        if (blockCounts[i] == 0)
+        if (freeBlocksOfLevel[i] == 0)
             continue;
 
         ptr = heapMemoryStart;
@@ -363,7 +378,7 @@ void HeapInit(void *memPool, int memSize)
     //printf("--------INFO--------\n");
 
     //for (unsigned int i = 0; i < LEVELS; i++)
-    //    printf("LIST OF POWER %d HAS - %d - FREE BLOCKS\n", i, blockCounts[i]);
+    //    printf("LIST OF POWER %d HAS - %d - FREE BLOCKS\n", i, freeBlocksOfLevel[i]);
 
     //printBlocks(lowestLevel);
 
@@ -373,7 +388,7 @@ void HeapInit(void *memPool, int memSize)
     printf("--------AFTER REMOVAL--------\n");
 
     for (unsigned int i = 0; i < LEVELS; i++)
-        printf("LIST OF POWER %d HAS - %d - FREE BLOCKS\n", i, blockCounts[i]);
+        printf("LIST OF POWER %d HAS - %d - FREE BLOCKS\n", i, freeBlocksOfLevel[i]);
 
     //printBlocks(lowestLevel);
 
@@ -384,57 +399,225 @@ void HeapInit(void *memPool, int memSize)
     printf("MEMORY SET AND PREPARED FOR USE\n");
 }
 
+bool createBlocksOfLevel(size_t level)
+{
+    if (level == highestLevel)
+    {
+        printf("**** THERE IS NO HIGHER LEVEL!!!\n");
+        return false;
+    }
+
+    unsigned int curLevel = level + 1;
+    size_t splitIndex = 0, newSize = 0;
+    printf("**** CUR_LEVEL: %d\n", curLevel);
+    uint8_t *ptr = NULL;
+
+    while (curLevel <= highestLevel)
+    {
+        if (freeBlocksOfLevel[curLevel] == 0)
+        {
+            curLevel++;
+        }
+        else
+        {
+            lists[curLevel - 1] = lists[curLevel];
+            lists[curLevel] = lists[curLevel]->next;
+            lists[curLevel - 1]->size /= 2;
+            newSize = lists[curLevel - 1]->size;
+
+            ptr = (uint8_t *)lists[curLevel - 1];
+            ptr += newSize;
+
+            lists[curLevel - 1]->next = (Block *)ptr;
+            lists[curLevel - 1]->next->size = newSize;
+            lists[curLevel - 1]->next->next = NULL;
+
+            freeBlocksOfLevel[curLevel] -= 1;
+            freeBlocksOfLevel[curLevel - 1] += 2;
+            splitIndex = pow(2, highestLevel - curLevel) + splitCounts[curLevel] - 1;
+            setSplitBit(splitIndex);
+            splitCounts[curLevel] += 1;
+
+            //printBlocks(lowestLevel);
+
+            if (curLevel - 1 == level)
+                return true;
+
+            curLevel = level + 1;
+        }
+    }
+
+    printf("/// WENT BEHIND WHILE!!!\n");
+    return false;
+}
+
 void *HeapAlloc(int size)
 {
-    /* todo */
+    size_t blockLevel = log2(nearestHigherPower(size)), index = 0;
+    printf("NHP LEVEL is: %zu\n", blockLevel);
+    Block *block = NULL;
+
+    while (lists[blockLevel] == NULL)
+    {
+        //create block of size nhp
+        if (!createBlocksOfLevel(blockLevel))
+        {
+            printf("COULD NOT CREATE A DESIRED BLOCK\n");
+            return NULL;
+        }
+
+        printf("CREATED BLOCKS OF DESIRED SIZE\n");
+    }
+
+    //there is a free block of a correct size for allocation already
+
+    block = lists[blockLevel];
+    lists[blockLevel] = lists[blockLevel]->next;
+    allocatedBlocksOfLevel[blockLevel] += 1;
+    allocatedBlocks += 1;
+    freeBlocksOfLevel[blockLevel] -= 1;
+    index = pow(2, highestLevel - blockLevel) + allocatedBlocksOfLevel[blockLevel] - 1;
+    printf("ALLOCATING INDEX %zu\n", index);
+    setIndexBit(index);
+
+    return (void *)block;
+}
+
+bool isBlockAllocated(size_t index)
+{
+    unsigned int bytes = index / 8;
+    unsigned int bits = index % 8;
+
+    uint8_t *ptr = realMemoryStart;
+    ptr += bytes;
+    uint8_t mask = 128 >> bits;
+    return (mask & *ptr);
+}
+
+bool isParentSplit(size_t blockIndex)
+{
+    size_t parentIndex = floor((blockIndex - 1) / 2);
+    size_t parentBit = parentIndex + occupancyIndexBits + 1;
+    unsigned int bytes = parentBit / 8;
+    unsigned int bits = parentBit % 8;
+
+    uint8_t *ptr = realMemoryStart;
+    ptr += bytes;
+    uint8_t mask = 128 >> bits;
+    return (mask & *ptr);
+}
+
+bool freeBlock(Block *block)
+{
+    uint8_t *ptr = (uint8_t *)block;
+    unsigned int indexInLastLevel = (ptr - heapMemoryStart) / lowestLevelBlockSize - 1;
+    unsigned int index = (1 << (highestLevel - lowestLevel)) + indexInLastLevel - 1;
+
+    //parent starts at different address -> pointer points to the correct block
+    if (index % 2)
+    {
+        if (!isBlockAllocated(index))
+            return false;
+
+        //MERGING!!!?
+
+        freeBlocksOfLevel[lowestLevel] += 1;
+        allocatedBlocksOfLevel[lowestLevel] -= 1;
+        allocatedBlocks -= 1;
+        return true;
+    }
+    else
+    {
+        unsigned int level = lowestLevel;
+        size_t newIndex = index;
+        size_t parentIndex = floor((index - 1) / 2);
+
+        while (!isParentSplit(newIndex))
+        {
+            newIndex = parentIndex;
+            parentIndex = floor((newIndex - 1) / 2);
+            level++;
+        }
+
+        //parent is split, newIndex is the wanted block index
+
+        if (!isBlockAllocated(newIndex))
+            return false;
+
+        //MERGING!!!?
+
+        freeBlocksOfLevel[level] += 1;
+        allocatedBlocksOfLevel[level] -= 1;
+        allocatedBlocks -= 1;
+        return true;
+    }
 }
 
 bool HeapFree(void *blk)
 {
-    /* todo */
+    uint8_t *block = (uint8_t *)blk;
+    unsigned int blockLevel = 0;
+
+    if (block < heapMemoryStart || block > realMemoryStart + heapMemorySize)
+        return false;
+
+    if (((size_t)(block - heapMemorySize) % lowestLevelBlockSize) != 0)
+        return false;
+
+    // now i know i have a ptr to some block (its a 16 mult.)
+    printf("IT SEEMS TO BE A BLOCK ...\n");
+
+    Block *b = (Block *)block;
+    bool res = freeBlock(b);
+
+    if (!res)
+        return false;
+    return true;
 }
 
 void HeapDone(int *pendingBlk)
 {
-    /* todo */
+    *pendingBlk = allocatedBlocks;
+    printf("ALLOCATED BLOCKS: %d\n", allocatedBlocks);
 }
 
 #ifndef __PROGTEST__
 
 int main(void)
 {
-
-    static uint8_t memPool[3 * 1048576];
-    HeapInit(memPool, 2097152);
-    printf("---INIT END---\n");
-
-    /*
     uint8_t *p0, *p1, *p2, *p3, *p4;
     int pendingBlk;
     static uint8_t memPool[3 * 1048576];
 
     HeapInit(memPool, 2097152);
-    assert((p0 = (uint8_t *) HeapAlloc(512000)) != NULL);
+
+    printf("---INIT END---\n");
+
+    assert((p0 = (uint8_t *)HeapAlloc(512000)) != NULL);
     memset(p0, 0, 512000);
-    assert((p1 = (uint8_t *) HeapAlloc(511000)) != NULL);
+    assert((p1 = (uint8_t *)HeapAlloc(511000)) != NULL);
     memset(p1, 0, 511000);
-    assert((p2 = (uint8_t *) HeapAlloc(26000)) != NULL);
+    assert((p2 = (uint8_t *)HeapAlloc(26000)) != NULL);
     memset(p2, 0, 26000);
     HeapDone(&pendingBlk);
+
+    //printf("PENDING: %d\n", pendingBlk);
+
     assert(pendingBlk == 3);
 
-
     HeapInit(memPool, 2097152);
-    assert((p0 = (uint8_t *) HeapAlloc(1000000)) != NULL);
+    assert((p0 = (uint8_t *)HeapAlloc(1000000)) != NULL);
     memset(p0, 0, 1000000);
-    assert((p1 = (uint8_t *) HeapAlloc(250000)) != NULL);
+    assert((p1 = (uint8_t *)HeapAlloc(250000)) != NULL);
     memset(p1, 0, 250000);
-    assert((p2 = (uint8_t *) HeapAlloc(250000)) != NULL);
+    assert((p2 = (uint8_t *)HeapAlloc(250000)) != NULL);
     memset(p2, 0, 250000);
-    assert((p3 = (uint8_t *) HeapAlloc(250000)) != NULL);
+    assert((p3 = (uint8_t *)HeapAlloc(250000)) != NULL);
     memset(p3, 0, 250000);
-    assert((p4 = (uint8_t *) HeapAlloc(50000)) != NULL);
+    assert((p4 = (uint8_t *)HeapAlloc(50000)) != NULL);
     memset(p4, 0, 50000);
+
+    /*
     assert(HeapFree(p2));
     assert(HeapFree(p4));
     assert(HeapFree(p3));
