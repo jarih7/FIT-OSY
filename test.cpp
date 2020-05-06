@@ -12,8 +12,8 @@ using namespace std;
 
 struct Block
 {
-    size_t size;
     Block *next;
+    Block *prev;
 };
 
 int allocatedBlocks = 0;
@@ -23,9 +23,9 @@ unsigned int lowestLevelBlockSize = (1 << lowestLevel), highestLevelBlockSize = 
 size_t heapMemorySize = 0, realMemorySize = 0, occupancyIndexBits = 0, splitIndexBits = 0;
 
 uint8_t *realMemoryStart = NULL, *heapMemoryStart = NULL;
-static Block *lists[LEVELS];
-static unsigned int freeBlocksOfLevel[LEVELS];
-static unsigned int splitCounts[LEVELS];
+Block *lists[LEVELS];
+unsigned int freeBlocksOfLevel[LEVELS];
+unsigned int splitCounts[LEVELS];
 
 size_t nearestHigherPower(int memSize)
 {
@@ -178,19 +178,19 @@ void initSeq2()
     }
 }
 
-void printBlocks(unsigned int level)
-{
-    Block *ptr = lists[level];
-    printf("LIST: ");
-
-    while (ptr != NULL)
-    {
-        printf("block-%zu-bytes -> ", ptr->size);
-        ptr = ptr->next;
-    }
-
-    printf("NULL\n");
-}
+//void printBlocks(unsigned int level)
+//{
+//    Block *ptr = lists[level];
+//    printf("LIST: ");
+//
+//    while (ptr != NULL)
+//    {
+//        printf("block-%zu-bytes -> ", ptr->size);
+//        ptr = ptr->next;
+//    }
+//
+//    printf("NULL\n");
+//}
 
 void setIndexBit(size_t index)
 {
@@ -375,8 +375,9 @@ void initSeq4()
         ptr += startsAt;
         lists[i] = (Block *)ptr;
         blockSize = pow(2, i);
-        lists[i]->size = blockSize;
+        //lists[i]->size = blockSize;
         lists[i]->next = NULL;
+        lists[i]->prev = NULL;
         startsAt += blockSize;
     }
 }
@@ -458,19 +459,24 @@ bool createBlocksOfLevel(size_t level)
         {
             lists[curLevel - 1] = lists[curLevel];
             lists[curLevel] = lists[curLevel]->next;
-            lists[curLevel - 1]->size /= 2;
-            newSize = lists[curLevel - 1]->size;
+
+            if (lists[curLevel] != NULL)
+                lists[curLevel]->prev = NULL;
+
+            //lists[curLevel - 1]->size /= 2;
+            newSize = pow(2, curLevel - 1);
 
             ptr = (uint8_t *)lists[curLevel - 1];
             ptr += newSize;
 
             lists[curLevel - 1]->next = (Block *)ptr;
-            lists[curLevel - 1]->next->size = newSize;
+            //lists[curLevel - 1]->next->size = newSize;
             lists[curLevel - 1]->next->next = NULL;
+            lists[curLevel - 1]->next->prev = lists[curLevel - 1];
 
             freeBlocksOfLevel[curLevel] -= 1;
             freeBlocksOfLevel[curLevel - 1] += 2;
-            splitIndex = pow(2, highestLevel - curLevel) + splitCounts[curLevel] - 1;
+            splitIndex = (1 << (highestLevel - curLevel)) + (((uint8_t *)lists[curLevel - 1] - heapMemoryStart) / pow(2, curLevel)) - 1;
             setSplitBit(splitIndex);
             splitCounts[curLevel] += 1;
 
@@ -510,7 +516,19 @@ void *HeapAlloc(int size)
 
     block = lists[blockLevel];
     blockAddress = (uint8_t *)block;
-    lists[blockLevel] = lists[blockLevel]->next;
+
+    //only one block in free list
+    if (lists[blockLevel]->next == NULL)
+    {
+        lists[blockLevel] = NULL;
+    }
+    else
+    {
+        //more than one block in free list
+        lists[blockLevel] = lists[blockLevel]->next;
+        lists[blockLevel]->prev = NULL;
+    }
+
     allocatedBlocks += 1;
     freeBlocksOfLevel[blockLevel] -= 1;
     indexInLevel = (blockAddress - heapMemoryStart) / pow(2, blockLevel);
@@ -545,11 +563,37 @@ bool isParentSplit(size_t blockIndex)
     return (mask & *ptr);
 }
 
-bool mergeBlocks(uint8_t *leftBlock, uint8_t *rightBlock)
+void finishMergingUp(Block *block, size_t blockIndex, unsigned int blockLevel);
+
+void mergeBlocks(uint8_t *leftBlock, uint8_t *rightBlock, unsigned int destLevel, size_t newBlockIndex)
 {
-    Block *lb = (Block *)leftBlock;
-    Block *rb = (Block *)rightBlock;
-    Block *newHigherLevelBlock = NULL;
+    Block *newHigherLevelBlock = (Block *)leftBlock;
+    unsetSplitBit(newBlockIndex);
+
+    //merge up
+    finishMergingUp(newHigherLevelBlock, newBlockIndex, destLevel);
+}
+
+void finishMergingUp(Block *block, size_t blockIndex, unsigned int blockLevel)
+{
+    size_t buddyIndex = 0;
+
+    if (blockIndex % 2)
+    {
+        buddyIndex = blockIndex - 1;
+        while (!isBlockAllocated(buddyIndex))
+        {
+            mergeBlocks((uint8_t *)(block - (size_t)pow(2, blockLevel)), (uint8_t *)block, blockLevel + 1, (size_t)floor((blockIndex - 1) / 2));
+        }
+    }
+    else
+    {
+        buddyIndex = blockIndex + 1;
+        while (!isBlockAllocated(buddyIndex))
+        {
+            mergeBlocks((uint8_t *)block, (uint8_t *)(block + (size_t)pow(2, blockLevel)), blockLevel + 1, (size_t)floor((blockIndex - 1) / 2));
+        }
+    }
 }
 
 bool freeBlock(uint8_t *block)
@@ -565,19 +609,62 @@ bool freeBlock(uint8_t *block)
 
         //MERGING!!!?
         Block *blk = (Block *)block;
+        Block *buddy = NULL;
 
         if (!isBlockAllocated(index - 1))
         {
+            //remove my free budy from free list
+            buddy = (Block *)(block - lowestLevelBlockSize);
+
+            //remove buddy from free list
+            //all buddy location options
+            if (buddy->prev == NULL && buddy->next != NULL)
+            {
+                lists[lowestLevel] = buddy->next;
+                lists[lowestLevel]->prev = NULL;
+            }
+            else if (buddy->prev == NULL && buddy->next == NULL)
+            {
+                lists[lowestLevel] = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next == NULL)
+            {
+                buddy->prev->next = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next != NULL)
+            {
+                buddy->prev->next = buddy->next;
+                buddy->next->prev = buddy->prev;
+            }
+            //both buddies gone from free list
+
+            unsetIndexBit(index);
+            //block that is being freed gets 0 to his index (he is free now)
+
             //merge + update all info
-            mergeBlocks(block - blk->size, block);
+            mergeBlocks((uint8_t *)buddy, block, lowestLevel + 1, floor((index - 1) / 2));
             return true;
         }
 
         freeBlocksOfLevel[lowestLevel] += 1;
         allocatedBlocks -= 1;
 
-        blk->next = lists[lowestLevel];
-        lists[lowestLevel] = blk;
+        //adding freed block to the beginning of the free list
+
+        if (lists[lowestLevel] == NULL)
+        {
+            lists[lowestLevel] = blk;
+            blk->prev = NULL;
+            blk->next = NULL;
+        }
+        else
+        {
+            blk->next = lists[lowestLevel];
+            lists[lowestLevel]->prev = blk;
+            lists[lowestLevel] = blk;
+            blk->prev = NULL;
+        }
+
         unsetIndexBit(index);
         return true;
     }
@@ -587,7 +674,7 @@ bool freeBlock(uint8_t *block)
         size_t newIndex = index;
         size_t parentIndex = floor((index - 1) / 2);
 
-        while (!isParentSplit(newIndex))
+        while (!isParentSplit(newIndex) /* && parentStartsAtTheSameAddress() */)
         {
             newIndex = parentIndex;
             parentIndex = floor((newIndex - 1) / 2);
@@ -600,21 +687,58 @@ bool freeBlock(uint8_t *block)
             return false;
 
         Block *blk = (Block *)block;
+        Block *buddy = NULL;
 
         //MERGING!!!?
         if (!isBlockAllocated(newIndex + 1))
         {
+            //remove my free budy from free list
+            buddy = (Block *)(block + (size_t)(pow(2, level)));
+
+            //buddy is first in list
+            if (buddy->prev == NULL && buddy->next != NULL)
+            {
+                lists[level] = buddy->next;
+                lists[level]->prev = NULL;
+            }
+            else if (buddy->prev == NULL && buddy->next == NULL)
+            {
+                lists[level] = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next == NULL)
+            {
+                buddy->prev->next = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next != NULL)
+            {
+                buddy->prev->next = buddy->next;
+                buddy->next->prev = buddy->prev;
+            }
+            //buddies both gone from free list
+
             //merge + update all info
-            mergeBlocks(block, block + blk->size);
+            mergeBlocks(block, block + (size_t)(pow(2, level)), level + 1, parentIndex);
+            return true;
         }
 
         freeBlocksOfLevel[level] += 1;
         allocatedBlocks -= 1;
 
-        blk->next = lists[level];
-        lists[level] = blk;
-        unsetIndexBit(newIndex);
+        if (lists[level] == NULL)
+        {
+            lists[level] = blk;
+            blk->prev = NULL;
+            blk->next = NULL;
+        }
+        else
+        {
+            blk->next = lists[level];
+            lists[level]->prev = blk;
+            lists[level] = blk;
+            blk->prev = NULL;
+        }
 
+        unsetIndexBit(newIndex);
         return true;
     }
 }
@@ -624,7 +748,7 @@ bool HeapFree(void *blk)
     uint8_t *block = (uint8_t *)blk;
     unsigned int blockLevel = 0;
 
-    if (block < heapMemoryStart || block > realMemoryStart + heapMemorySize)
+    if (block < heapMemoryStart || block > (realMemoryStart + heapMemorySize))
         return false;
 
     if (((size_t)(block - heapMemorySize) % lowestLevelBlockSize) != 0)
@@ -654,8 +778,6 @@ int main(void)
     int pendingBlk;
     static uint8_t memPool[3 * 1048576];
 
-    printf("---INIT END---\n");
-
     HeapInit(memPool, 2097152);
     assert((p0 = (uint8_t *)HeapAlloc(512000)) != NULL);
     memset(p0, 0, 512000);
@@ -665,8 +787,6 @@ int main(void)
     memset(p2, 0, 26000);
     HeapDone(&pendingBlk);
     assert(pendingBlk == 3);
-
-    //printf("PENDING: %d\n", pendingBlk);
 
     HeapInit(memPool, 2097152);
     assert((p0 = (uint8_t *)HeapAlloc(1000000)) != NULL);
@@ -679,8 +799,6 @@ int main(void)
     memset(p3, 0, 250000);
     assert((p4 = (uint8_t *)HeapAlloc(50000)) != NULL);
     memset(p4, 0, 50000);
-
-    /*
     assert(HeapFree(p2));
     assert(HeapFree(p4));
     assert(HeapFree(p3));
@@ -714,7 +832,6 @@ int main(void)
     assert(!HeapFree(p0 + 1000));
     HeapDone(&pendingBlk);
     assert(pendingBlk == 1);
-    */
 
     return 0;
 }
