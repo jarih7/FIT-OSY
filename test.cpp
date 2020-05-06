@@ -12,8 +12,8 @@ using namespace std;
 
 struct Block
 {
-    size_t size;
     Block *next;
+    Block *prev;
 };
 
 int allocatedBlocks = 0;
@@ -178,19 +178,19 @@ void initSeq2()
     }
 }
 
-void printBlocks(unsigned int level)
-{
-    Block *ptr = lists[level];
-    printf("LIST: ");
-
-    while (ptr != NULL)
-    {
-        printf("block-%zu-bytes -> ", ptr->size);
-        ptr = ptr->next;
-    }
-
-    printf("NULL\n");
-}
+//void printBlocks(unsigned int level)
+//{
+//    Block *ptr = lists[level];
+//    printf("LIST: ");
+//
+//    while (ptr != NULL)
+//    {
+//        printf("block-%zu-bytes -> ", ptr->size);
+//        ptr = ptr->next;
+//    }
+//
+//    printf("NULL\n");
+//}
 
 void setIndexBit(size_t index)
 {
@@ -375,8 +375,9 @@ void initSeq4()
         ptr += startsAt;
         lists[i] = (Block *)ptr;
         blockSize = pow(2, i);
-        lists[i]->size = blockSize;
+        //lists[i]->size = blockSize;
         lists[i]->next = NULL;
+        lists[i]->prev = NULL;
         startsAt += blockSize;
     }
 }
@@ -458,15 +459,17 @@ bool createBlocksOfLevel(size_t level)
         {
             lists[curLevel - 1] = lists[curLevel];
             lists[curLevel] = lists[curLevel]->next;
-            lists[curLevel - 1]->size /= 2;
-            newSize = lists[curLevel - 1]->size;
+            lists[curLevel]->prev = NULL;
+            //lists[curLevel - 1]->size /= 2;
+            newSize = pow(2, curLevel - 1);
 
             ptr = (uint8_t *)lists[curLevel - 1];
             ptr += newSize;
 
             lists[curLevel - 1]->next = (Block *)ptr;
-            lists[curLevel - 1]->next->size = newSize;
+            //lists[curLevel - 1]->next->size = newSize;
             lists[curLevel - 1]->next->next = NULL;
+            lists[curLevel - 1]->next->prev = lists[curLevel - 1];
 
             freeBlocksOfLevel[curLevel] -= 1;
             freeBlocksOfLevel[curLevel - 1] += 2;
@@ -511,6 +514,7 @@ void *HeapAlloc(int size)
     block = lists[blockLevel];
     blockAddress = (uint8_t *)block;
     lists[blockLevel] = lists[blockLevel]->next;
+    lists[blockLevel]->prev = NULL;
     allocatedBlocks += 1;
     freeBlocksOfLevel[blockLevel] -= 1;
     indexInLevel = (blockAddress - heapMemoryStart) / pow(2, blockLevel);
@@ -565,19 +569,47 @@ bool freeBlock(uint8_t *block)
 
         //MERGING!!!?
         Block *blk = (Block *)block;
+        Block *buddy = NULL;
 
         if (!isBlockAllocated(index - 1))
         {
+            //remove my free budy from free list
+            buddy = (Block *)(block - lowestLevelBlockSize);
+
+            //buddy is first in list
+            if (buddy->prev == NULL && buddy->next != NULL)
+            {
+                lists[lowestLevel] = buddy->next;
+                lists[lowestLevel]->prev = NULL;
+            }
+            else if (buddy->prev == NULL && buddy->next == NULL)
+            {
+                lists[lowestLevel] = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next == NULL)
+            {
+                buddy->prev->next = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next != NULL)
+            {
+                buddy->prev->next = buddy->next;
+                buddy->next->prev = buddy->prev;
+            }
+            //buddies both gone from free list
+
             //merge + update all info
-            mergeBlocks(block - blk->size, block);
+            mergeBlocks((uint8_t *)buddy, block);
             return true;
         }
 
         freeBlocksOfLevel[lowestLevel] += 1;
         allocatedBlocks -= 1;
 
+        //adding freed block to the beginning of the free list
         blk->next = lists[lowestLevel];
+        lists[lowestLevel]->prev = blk;
         lists[lowestLevel] = blk;
+        blk->prev = NULL;
         unsetIndexBit(index);
         return true;
     }
@@ -587,7 +619,7 @@ bool freeBlock(uint8_t *block)
         size_t newIndex = index;
         size_t parentIndex = floor((index - 1) / 2);
 
-        while (!isParentSplit(newIndex))
+        while (!isParentSplit(newIndex) /* && parentStartsAtTheSameAddress() */)
         {
             newIndex = parentIndex;
             parentIndex = floor((newIndex - 1) / 2);
@@ -600,21 +632,47 @@ bool freeBlock(uint8_t *block)
             return false;
 
         Block *blk = (Block *)block;
+        Block *buddy = NULL;
 
         //MERGING!!!?
         if (!isBlockAllocated(newIndex + 1))
         {
+            //remove my free budy from free list
+            buddy = (Block *)(block - (size_t)(pow(2, level)));
+
+            //buddy is first in list
+            if (buddy->prev == NULL && buddy->next != NULL)
+            {
+                lists[level] = buddy->next;
+                lists[level]->prev = NULL;
+            }
+            else if (buddy->prev == NULL && buddy->next == NULL)
+            {
+                lists[level] = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next == NULL)
+            {
+                buddy->prev->next = NULL;
+            }
+            else if (buddy->prev != NULL && buddy->next != NULL)
+            {
+                buddy->prev->next = buddy->next;
+                buddy->next->prev = buddy->prev;
+            }
+            //buddies both gone from free list
+
             //merge + update all info
-            mergeBlocks(block, block + blk->size);
+            mergeBlocks(block, block + (size_t)(pow(2, level)));
         }
 
         freeBlocksOfLevel[level] += 1;
         allocatedBlocks -= 1;
 
         blk->next = lists[level];
+        lists[level]->prev = blk;
         lists[level] = blk;
+        blk->prev = NULL;
         unsetIndexBit(newIndex);
-
         return true;
     }
 }
