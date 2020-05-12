@@ -1,0 +1,554 @@
+--- TEST HEAP ---
+free 7 
+
+.......^............
+....................
+....................
+....................
+....................
+....................
+........
+
+0000000
+ 0 0 0
+   0
+
+alloc 18
+expected blk 32
+
+....................
+............*ooooooo
+oooooooooooooooooooo
+ooo#................
+....................
+....................
+........
+
+0000000
+ 1 0 0
+   0
+
+free 107 
+
+....................
+............*ooooooo
+oooooooooooooooooooo
+ooo#................
+....................
+.......^............
+........
+
+0000000
+ 1 0 0
+   0
+
+free 29 
+
+....................
+.........^..*ooooooo
+oooooooooooooooooooo
+ooo#................
+....................
+....................
+........
+
+0000000
+ 1 0 0
+   0
+
+alloc 25
+expected blk 32
+
+....................
+............*ooooooo
+oooooooooooooooooooo
+ooo#................
+................*ooo
+oooooooooooooooooooo
+ooooooo#
+
+0000000
+ 1 0 1
+   0
+
+free 109 
+err free 1
+
+....................
+............*ooooooo
+oooooooooooooooooooo
+ooo#................
+................*ooo
+ooooooooo^oooooooooo
+ooooooo#
+
+0000000
+ 1 0 0
+   0
+
+alloc 28
+expected blk 32
+
+....................
+............*ooooooo
+oooooooooooooooooooo
+ooo#*ooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+ooooooo#
+
+0000000
+ 1 1 0
+   0
+
+alloc 27
+expected blk 32
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+
+....................
+............*ooooooo
+oooooooooooooooooooo
+ooo#*ooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+0000000
+ 1 1 1
+   0
+
+alloc 16
+expected blk 16
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+ooo#*ooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+1000000
+ 1 1 1
+   0
+
+free 42 
+err free 1
+
+................*ooo
+ooooooooooo#*ooooooo
+oo^ooooooooooooooooo
+ooo#*ooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+1000000
+ 0 1 1
+   0
+
+free 34 
+
+................*ooo
+ooooooooooo#*o^ooooo
+oooooooooooooooooooo
+ooo#*ooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+1000000
+ 0 1 1
+   0
+
+alloc 10
+expected blk 16
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+1010000
+ 0 1 1
+   0
+
+free 98 
+err free 1
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooo#*o^o
+oooooooooooooooooooo
+oooooooo
+
+1010000
+ 0 1 0
+   0
+
+alloc 32
+expected blk 32
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+1010000
+ 0 1 1
+   0
+
+free 102 
+err free 1
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooo#*ooo
+oo^ooooooooooooooooo
+oooooooo
+
+1010000
+ 0 1 0
+   0
+
+free 121 
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+o^oooooo
+
+1010000
+ 0 1 0
+   0
+
+alloc 15
+expected blk 16
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+1110000
+ 0 1 0
+   0
+
+alloc 16
+expected blk 16
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooo#*ooo
+oooooooooooooooooooo
+oooooooo
+
+1110001
+ 0 1 0
+   0
+
+alloc 27
+expected blk 32
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooo
+
+1110001
+ 0 1 0
+   0
+
+alloc 30
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooo
+
+1110001
+ 0 1 0
+   0
+
+alloc 32
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooo
+
+1110001
+ 0 1 0
+   0
+
+free 77 
+err free 1
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+ooooooooooooooooo^oo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooo
+
+1110001
+ 0 0 0
+   0
+
+free 104 
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooo^ooooooooooooooo
+oooooooo
+
+1110001
+ 0 0 0
+   0
+
+free 99 
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+ooooooooooooooooooo^
+oooooooooooooooooooo
+oooooooo
+
+1110001
+ 0 0 0
+   0
+
+free 122 
+err free 1
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oo^ooooo
+
+1110000
+ 0 0 0
+   0
+
+free 126 
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooo^o
+
+1110000
+ 0 0 0
+   0
+
+alloc 23
+expected blk 32
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+err used
+
+................*ooo
+ooooooooooo#*ooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooooooooooooooo
+oooooooo
+
+1110000
+ 0 0 1
+   0
+
